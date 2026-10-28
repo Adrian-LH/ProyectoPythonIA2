@@ -1,0 +1,7 @@
+﻿auth*.log
+etiquetas*.csv
+modelo.joblib
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.env
