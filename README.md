@@ -1,23 +1,38 @@
-# Kit del Proyecto DAM — Auditar e integrar un detector de intrusiones
+﻿# Proyecto DAM: auditar e integrar un detector de intrusiones con IA
 
-Contenido:
+Detector de intrusiones SSH basado en Machine Learning, expuesto como API REST (FastAPI) y consumido desde una interfaz.
 
-- `generar_logs.py` — genera tu log (`auth.log`) y sus etiquetas (`etiquetas.csv`). No lo modifiques.
-- `logtools.py` — lee el log y construye las características por IP. Está hecho: léelo y entiéndelo.
-- `entrenar.py` — entrena el modelo y lo guarda en `modelo.joblib`.
-- `analisis.ipynb` — cuaderno guiado con preguntas (❓) y experimentos (🧪).
-- `requirements.txt` — librerías necesarias.
+**Semilla del grupo: `123`** (todos generamos los datos con esta semilla).
 
-## Puesta en marcha
+## Instalación
 
-```bash
-python -m venv .venv
-# Windows:  .venv\Scripts\activate        Linux/macOS:  source .venv/bin/activate
-pip install -r requirements.txt
+    python -m venv .venv
+    # Windows: .venv\Scripts\activate    Linux/macOS: source .venv/bin/activate
+    pip install -r requirements.txt
 
-python generar_logs.py --seed <TU_NUMERO_DE_LISTA> --salida auth.log --etiquetas etiquetas.csv
-python entrenar.py --log auth.log --etiquetas etiquetas.csv --salida modelo.joblib
-jupyter notebook analisis.ipynb
-```
+## Generar datos y entrenar el modelo
 
-La fase de integración (API + interfaz) la programas tú; los apuntes y el enunciado explican qué debe hacer.
+    python generar_logs.py --seed 123 --salida auth.log --etiquetas etiquetas.csv
+    python entrenar.py --log auth.log --etiquetas etiquetas.csv --salida modelo.joblib
+
+Los logs, etiquetas y modelos no se suben al repositorio: se regeneran con estos comandos.
+
+## Cuaderno de análisis
+
+    jupyter notebook analisis.ipynb
+
+## Arrancar la API
+
+(pendiente)
+
+## Usar la interfaz
+
+(pendiente)
+
+## Ejemplos de peticiones
+
+(pendiente)
+
+## Estructura del repositorio
+
+(pendiente)
