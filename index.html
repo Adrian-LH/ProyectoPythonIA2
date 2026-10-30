@@ -1,0 +1,298 @@
+
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Detector de Intrusiones SSH</title>
+
+    <style>
+
+        body {
+            font-family: Arial;
+            background-color: #f2f2f2;
+            margin: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #263b50;
+        }
+
+        .contenedor {
+            background-color: white;
+            max-width: 900px;
+            margin: auto;
+            padding: 25px;
+            border-radius: 10px;
+        }
+
+        h3 {
+            color: #263b50;
+        }
+
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 8px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #2878c7;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #185b99;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #2878c7;
+            color: white;
+        }
+
+        #mensaje {
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        #informacion {
+            margin-top: 15px;
+            color: #263b50;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>Detector de Intrusiones SSH</h1>
+
+    <div class="contenedor">
+
+        <h3>1. Seleccionar fichero de log</h3>
+
+        <input type="file" id="archivo" accept=".log,.txt">
+
+        <h3>2. Pegar líneas del log</h3>
+
+        <textarea id="lineas" rows="8"
+            placeholder="Pega aquí las líneas de auth.log"></textarea>
+
+        <h3>3. Umbral de detección</h3>
+
+        <input type="number" id="umbral"
+            value="0.7" min="0" max="1" step="0.1">
+
+        <h3>4. Lista blanca</h3>
+
+        <textarea id="listaBlanca" rows="3"
+            placeholder="Escribe una IP por línea"></textarea>
+
+        <button onclick="analizar()">Analizar log</button>
+
+        <p id="mensaje"></p>
+
+        <p id="informacion"></p>
+
+        <h3>5. IPs sospechosas</h3>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Dirección IP</th>
+                    <th>Probabilidad</th>
+                    <th>Motivo</th>
+                </tr>
+            </thead>
+
+            <tbody id="resultados">
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <script>
+
+        // Leer el archivo seleccionado
+
+        document.getElementById("archivo").addEventListener("change", function() {
+
+            let archivo = this.files[0];
+
+            if (archivo) {
+
+                let lector = new FileReader();
+
+                lector.onload = function() {
+                    document.getElementById("lineas").value = lector.result;
+                };
+
+                lector.readAsText(archivo);
+
+            }
+
+        });
+
+
+        // Enviar los datos a la API
+
+        async function analizar() {
+
+            let texto = document.getElementById("lineas").value;
+            let umbral = Number(document.getElementById("umbral").value);
+            let lista = document.getElementById("listaBlanca").value;
+
+            let lineas = texto.split("\n").filter(linea => linea.trim() !== "");
+
+            let listaBlanca = lista.split("\n").filter(ip => ip.trim() !== "");
+
+            let mensaje = document.getElementById("mensaje");
+            let informacion = document.getElementById("informacion");
+            let tabla = document.getElementById("resultados");
+
+            mensaje.style.color = "red";
+            mensaje.innerHTML = "";
+            informacion.innerHTML = "";
+            tabla.innerHTML = "";
+
+
+            // Comprobar que hay líneas
+
+            if (lineas.length === 0) {
+
+                mensaje.innerHTML = "Selecciona un archivo o introduce líneas del log.";
+                return;
+
+            }
+
+
+            // Comprobar el umbral
+
+            if (umbral < 0 || umbral > 1 || document.getElementById("umbral").value === "") {
+
+                mensaje.innerHTML = "El umbral debe estar entre 0 y 1.";
+                return;
+
+            }
+
+
+            try {
+
+                let respuesta = await fetch("http://127.0.0.1:8000/analizar", {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        lineas: lineas,
+                        umbral: umbral,
+                        lista_blanca: listaBlanca
+
+                    })
+
+                });
+
+
+                let datos = await respuesta.json();
+
+
+                // Mostrar errores de la API
+
+                if (!respuesta.ok) {
+
+                    if (datos.detalles) {
+                        throw new Error(datos.detalles.join(", "));
+                    }
+
+                    throw new Error(datos.error || "No se ha podido analizar el log.");
+
+                }
+
+
+                // Mostrar información del análisis
+
+                informacion.innerHTML =
+                    "IPs analizadas: " + datos.ips_analizadas +
+                    " | Líneas ignoradas: " + datos.lineas_ignoradas;
+
+
+                // Mostrar las IPs sospechosas
+
+                datos.sospechosas.forEach(function(ip) {
+
+                    let fila = document.createElement("tr");
+
+                    let celdaIP = document.createElement("td");
+                    celdaIP.textContent = ip.ip;
+
+                    let celdaProbabilidad = document.createElement("td");
+                    celdaProbabilidad.textContent = (ip.probabilidad * 100).toFixed(1) + "%";
+
+                    let celdaMotivo = document.createElement("td");
+                    celdaMotivo.textContent = ip.motivo;
+
+                    fila.appendChild(celdaIP);
+                    fila.appendChild(celdaProbabilidad);
+                    fila.appendChild(celdaMotivo);
+
+                    tabla.appendChild(fila);
+
+                });
+
+
+                if (datos.sospechosas.length === 0) {
+
+                    mensaje.style.color = "green";
+                    mensaje.innerHTML = "No se han encontrado IPs sospechosas.";
+
+                } else {
+
+                    mensaje.style.color = "green";
+                    mensaje.innerHTML = "Análisis completado correctamente.";
+
+                }
+
+
+            } catch (error) {
+
+                mensaje.style.color = "red";
+                mensaje.innerHTML = "Error: " + error.message;
+
+            }
+
+        }
+
+    </script>
+
+</body>
+
+</html>
