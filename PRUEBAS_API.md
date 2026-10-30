@@ -84,3 +84,53 @@ Probar "4. Lineas basura" @{ lineas = @("hola que tal", "esto no es un log", "12
 | 4 | Líneas basura | 422, nada que analizar | 422, mensaje claro | Sí |
 
 Todos los errores siguen el mismo formato: `{"error": "...", "detalles": [...]}`.
+
+## Repetir las pruebas con curl (macOS / Linux)
+
+```bash
+python -c "import json; print(json.dumps({'lineas': open('auth.log').read().splitlines(), 'umbral': 0.7, 'lista_blanca': []}))" > peticion.json
+curl -s -X POST http://127.0.0.1:8000/analizar -H "Content-Type: application/json" -d @peticion.json | head -c 600
+curl -s -X POST http://127.0.0.1:8000/analizar -H "Content-Type: application/json" -d '{"lineas": ["x"], "umbral": 1.5}'
+curl -s -X POST http://127.0.0.1:8000/analizar -H "Content-Type: application/json" -d '{"lineas": ["hola que tal", "esto no es un log", "12345"]}'
+```
+
+## Pruebas extra
+
+Lanzadas con curl desde macOS, con la API arrancada con `uvicorn api:app`.
+
+| # | Prueba | Petición | Esperado | Obtenido | ¿OK? |
+|---|--------|----------|----------|----------|------|
+| 5 | `GET /salud` | `curl http://127.0.0.1:8000/salud` | 200, `"estado": "ok"` y la lista de características | 200, `{"estado":"ok","modelo":"RandomForestClassifier","caracteristicas":[11 características],"max_lineas":50000}` | Sí |
+| 6 | Cuerpo mal formado | `curl -X POST .../analizar -H "Content-Type: application/json" -d '{esto no es json'` | 422, `"Datos de entrada no validos"` | 422, `{"error":"Datos de entrada no validos","detalles":["1: JSON decode error"]}` | Sí |
+| 7 | IP no válida en la lista blanca | `-d '{"lineas": ["x"], "lista_blanca": ["no-es-una-ip"]}'` | 422, `"lista_blanca: ... no es una IP valida"` | 422, `{"error":"Datos de entrada no validos","detalles":["lista_blanca: Value error, 'no-es-una-ip' no es una IP valida"]}` | Sí |
+| 8 | Basura mezclada con una línea buena | una línea válida y dos de basura | 200, `lineas_ignoradas: 2`, `ips_analizadas: 1` | 200, `{"lineas_ignoradas":2,"ips_analizadas":1,"sospechosas":[]}` | Sí |
+
+En la prueba 8 no sale ninguna sospechosa: un solo fallo de contraseña no basta para que el modelo marque la IP, y es lo razonable.
+
+## Pruebas automáticas
+
+`test_api.py` repite todas estas pruebas con pytest y el `TestClient` de FastAPI (sin arrancar el servidor), y además comprueba el límite de 50.000 líneas, la lista de líneas vacía y que con umbral 0 se marcan todas las IPs.
+
+```bash
+pytest -v
+```
+
+Resultado (modelo entrenado con la semilla 123):
+
+```
+test_api.py::test_salud PASSED
+test_api.py::test_peticion_correcta PASSED
+test_api.py::test_lista_blanca PASSED
+test_api.py::test_umbral_cero_marca_todas_menos_lista_blanca PASSED
+test_api.py::test_umbral_fuera_de_rango[1.5] PASSED
+test_api.py::test_umbral_fuera_de_rango[-0.1] PASSED
+test_api.py::test_umbral_fuera_de_rango[alto] PASSED
+test_api.py::test_lineas_basura PASSED
+test_api.py::test_mezcla_basura_y_lineas_validas PASSED
+test_api.py::test_cuerpo_mal_formado PASSED
+test_api.py::test_falta_lineas PASSED
+test_api.py::test_lista_de_lineas_vacia PASSED
+test_api.py::test_ip_no_valida_en_lista_blanca PASSED
+test_api.py::test_demasiadas_lineas PASSED
+14 passed in 3.21s
+```
